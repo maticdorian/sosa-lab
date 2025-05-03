@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sign In</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/@tailwindcss/browser@latest"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+
+        .alert-box {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 1rem 2rem;
+            border-radius: 0.5rem;
+            font-weight: bold;
+            z-index: 10;
+        }
+
+        .alert-success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .alert-error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-tl from-purple-400 to-pink-300 min-h-screen flex items-center justify-center py-10">
+<div class="bg-white rounded-lg shadow-xl p-8 w-full max-w-md transition-transform">
+    <h1 class="text-2xl font-semibold text-gray-800 mb-6 text-center">Sign In</h1>
+    <form id="sign-in-form" class="space-y-4">
+        <div>
+            <label for="username" class="block text-gray-700 text-sm font-bold mb-2">Username</label>
+            <input type="username" id="username" placeholder="Enter your username" required
+                   class="shadow appearance-none border rounded w-full py-3 px-4 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
+            <div id="username-error" class="text-red-500 text-xs italic" style="display: none;">Please enter a username.</div>
+        </div>
+        <div class="flex justify-center space-x-4">
+            <button type="submit" id="sign-in-button"
+                    class="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-bold py-3 px-6 rounded-full focus:outline-none focus:shadow-outline transition duration-300 ease-in-out">
+                Sign In
+            </button>
+            <button type="submit" id="register-button"
+                    class="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-bold py-3 px-6 rounded-full focus:outline-none focus:shadow-outline transition duration-300 ease-in-out">
+                Register
+            </button>
+        </div>
+    </form>
+</div>
+
+<div id="alert-container" aria-live="polite" aria-atomic="true">
+    </div>
+
+<script>
+    const alertContainer = document.getElementById('alert-container');
+    const usernameInput = document.getElementById('username');
+    const usernameError = document.getElementById('username-error');
+
+    function showAlert(message, type = 'success') {
+        const alertDiv = document.createElement('div');
+        alertDiv.classList.add('alert-box');
+        alertDiv.classList.add(`alert-${type}`);
+        alertDiv.textContent = message;
+
+        alertContainer.appendChild(alertDiv);
+
+        // Automatically remove the alert after 3 seconds
+        setTimeout(() => {
+            alertDiv.remove();
+        }, 3000);
+    }
+
+    function validateUsername() {
+        if (!usernameInput.value.trim()) {
+            usernameError.style.display = 'block';
+            return false;
+        } else {
+            usernameError.style.display = 'none';
+            return true;
+        }
+    }
+
+    const asArrayBuffer = v => Uint8Array.from(atob(v.replace(/_/g, '/').replace(/-/g, '+')), c => c.charCodeAt(0))
+
+    async function registerPasskey() {
+        if (!validateUsername()) {
+            return;
+        }
+        try {
+            const publicKeyCredentialOptions = await fetch('/api/passkeys/options/register', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    // user: { id: 'user-unique-id', name: document.getElementById('username').value, displayName: 'User Display Name' },
+                    username: document.getElementById('username').value
+                }),
+            }).then(res => res.json());
+
+            publicKeyCredentialOptions.user.id = asArrayBuffer(publicKeyCredentialOptions.user.id)
+            publicKeyCredentialOptions.challenge = asArrayBuffer(publicKeyCredentialOptions.challenge)
+
+            if (!publicKeyCredentialOptions || !publicKeyCredentialOptions.challenge) {
+                console.error('Error: Invalid registration options received.');
+                showAlert('Invalid registration options received.', 'error');
+                return;
+            }
+
+            const credential = await navigator.credentials.create({
+                publicKey: publicKeyCredentialOptions,
+            });
+
+            if (credential) {
+                const registrationResponse = {
+                    id: credential.id,
+                    rawId: arrayBufferToBase64(credential.rawId),
+                    type: credential.type,
+                    response: {
+                        clientDataJSON: arrayBufferToBase64(credential.response.clientDataJSON),
+                        attestationObject: arrayBufferToBase64(credential.response.attestationObject),
+                    },
+                };
+
+                const verificationResult = await fetch('/api/passkeys/register', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                            registrationResponse: registrationResponse,
+                            username: document.getElementById('username').value
+                        }
+                    ),
+                });
+
+                if (verificationResult && verificationResult.ok) {
+                    showAlert('Passkey registered successfully!', 'success');
+                    // Optionally, redirect the user or update the UI
+                } else {
+                    console.error('Passkey registration failed:', verificationResult.error);
+                    showAlert('Passkey registration failed. Please try again.', 'error');
+                    // Handle registration failure (e.g., display an error message)
+                }
+            } else {
+                console.error('Error: Failed to create passkey credential.');
+                showAlert('Failed to create passkey. Please ensure your device supports it.', 'error');
+                // Handle the case where credential creation fails
+            }
+        } catch (error) {
+            console.error('An error occurred during passkey registration:', error);
+            showAlert('An unexpected error occurred during registration.', 'error');
+            // Handle any unexpected errors
+        }
+    }
+
+    async function signInWithPasskey() {
+        if (!validateUsername()) {
+            return;
+        }
+        try {
+            const publicKeyCredentialRequestOptions = await fetch('/api/passkeys/options/authenticate', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({username: document.getElementById('username').value}),
+            }).then(res => res.json());
+
+            publicKeyCredentialRequestOptions.challenge = asArrayBuffer(publicKeyCredentialRequestOptions.challenge)
+            if (publicKeyCredentialRequestOptions.allowCredentials && publicKeyCredentialRequestOptions.allowCredentials.length > 0) {
+                publicKeyCredentialRequestOptions.allowCredentials[0].id = asArrayBuffer(publicKeyCredentialRequestOptions.allowCredentials[0].id);
+            }
+
+
+            if (!publicKeyCredentialRequestOptions || !publicKeyCredentialRequestOptions.challenge) {
+                console.error('Error: Invalid authentication options received.');
+                showAlert('Invalid authentication options received.', 'error');
+                // Handle error appropriately
+                return;
+            }
+
+            const assertion = await navigator.credentials.get({
+                publicKey: publicKeyCredentialRequestOptions,
+            });
+
+            if (assertion) {
+                const authenticationResponse = {
+                    id: assertion.id,
+                    rawId: arrayBufferToBase64(assertion.rawId),
+                    type: assertion.type,
+                    response: {
+                        clientDataJSON: arrayBufferToBase64(assertion.response.clientDataJSON),
+                        authenticatorData: arrayBufferToBase64(assertion.response.authenticatorData),
+                        signature: arrayBufferToBase64(assertion.response.signature),
+                        userHandle: assertion.response.userHandle ? arrayBufferToBase64(assertion.response.userHandle) : null,
+                    },
+                };
+
+                const verificationResult = await fetch('/api/passkeys/authenticate', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        authenticationResponse: authenticationResponse,
+                        username: document.getElementById('username').value
+                    }),
+                });
+
+                if (verificationResult.ok) {
+                    showAlert('Successfully signed in with passkey!', 'success');
+                    // Redirect the user to the logged-in area
+                    window.location.href = '/profile'; // Replace with your actual dashboard URL
+                } else {
+                    console.error('Passkey sign-in failed:', verificationResult.error);
+                    showAlert('Passkey sign-in failed. Please try again or use another method.', 'error');
+                    // Handle authentication failure
+                }
+            } else {
+                console.error('Error: Failed to get passkey assertion.');
+                showAlert('Failed to initiate passkey sign-in.', 'error');
+                // Handle the case where getting an assertion fails
+            }
+        } catch (error) {
+            console.error('An error occurred during passkey sign-in:', error);
+            showAlert('An unexpected error occurred during sign-in.', 'error');
+            // Handle any unexpected errors
+        }
+    }
+
+    // Helper function to convert ArrayBuffer to base64
+    function arrayBufferToBase64(buffer) {
+        let binary = '';
+        const bytes = new Uint8Array(buffer);
+        const len = bytes.byteLength;
+        for (let i = 0; i < len; i++) {
+            binary += String.fromCharCode(bytes[i]);
+        }
+        return btoa(binary);
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        const signInButton = document.getElementById('sign-in-button');
+        const registerButton = document.getElementById('register-button');
+        const form = document.getElementById('sign-in-form');
+
+        usernameInput.addEventListener('input', validateUsername);
+
+        if (signInButton) {
+            signInButton.addEventListener('click', (event) => {
+                event.preventDefault(); // Prevent default form submission
+                if (validateUsername()) {
+                    signInWithPasskey();
+                }
+            });
+        } else {
+            console.warn('Sign In button with ID "sign-in-button" not found.');
+        }
+
+        if (registerButton) {
+            registerButton.addEventListener('click', (event) => {
+                event.preventDefault(); // Prevent default form submission
+                if (validateUsername()) {
+                    registerPasskey();
+                }
+            });
+        } else {
+            console.warn('Register button with ID "register-button" not found.');
+        }
+
+        form.addEventListener('submit', (event) => {
+            event.preventDefault(); // Prevent default form submission on Enter key
+            if (validateUsername()) {
+                // Determine which button was "clicked" (though programmatically)
+                const activeElement = document.activeElement;
+                if (activeElement && activeElement.id === 'register-button') {
+                    registerPasskey();
+                } else if (activeElement && activeElement.id === 'sign-in-button') {
+                    signInWithPasskey();
+                } else {
+                    // Default to sign-in if no specific button has focus
+                    signInWithPasskey();
+                }
+            }
+        });
+    });
+</script>
+</body>
+</html>
