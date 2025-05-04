@@ -103,7 +103,6 @@
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
-                    // user: { id: 'user-unique-id', name: document.getElementById('username').value, displayName: 'User Display Name' },
                     username: document.getElementById('username').value
                 }),
             }).then(res => res.json());
@@ -146,21 +145,17 @@
 
                 if (verificationResult && verificationResult.ok) {
                     showAlert('Passkey registered successfully!', 'success');
-                    // Optionally, redirect the user or update the UI
                 } else {
                     console.error('Passkey registration failed:', verificationResult.error);
                     showAlert('Passkey registration failed. Please try again.', 'error');
-                    // Handle registration failure (e.g., display an error message)
                 }
             } else {
                 console.error('Error: Failed to create passkey credential.');
                 showAlert('Failed to create passkey. Please ensure your device supports it.', 'error');
-                // Handle the case where credential creation fails
             }
         } catch (error) {
             console.error('An error occurred during passkey registration:', error);
             showAlert('An unexpected error occurred during registration.', 'error');
-            // Handle any unexpected errors
         }
     }
 
@@ -186,7 +181,6 @@
             if (!publicKeyCredentialRequestOptions || !publicKeyCredentialRequestOptions.challenge) {
                 console.error('Error: Invalid authentication options received.');
                 showAlert('Invalid authentication options received.', 'error');
-                // Handle error appropriately
                 return;
             }
 
@@ -220,22 +214,18 @@
 
                 if (verificationResult.ok) {
                     showAlert('Successfully signed in with passkey!', 'success');
-                    // Redirect the user to the logged-in area
-                    window.location.href = '/profile'; // Replace with your actual dashboard URL
+                    window.location.href = '/profile';
                 } else {
                     console.error('Passkey sign-in failed:', verificationResult.error);
                     showAlert('Passkey sign-in failed. Please try again or use another method.', 'error');
-                    // Handle authentication failure
                 }
             } else {
                 console.error('Error: Failed to get passkey assertion.');
                 showAlert('Failed to initiate passkey sign-in.', 'error');
-                // Handle the case where getting an assertion fails
             }
         } catch (error) {
             console.error('An error occurred during passkey sign-in:', error);
             showAlert('An unexpected error occurred during sign-in.', 'error');
-            // Handle any unexpected errors
         }
     }
 
@@ -270,7 +260,7 @@
 
         if (registerButton) {
             registerButton.addEventListener('click', (event) => {
-                event.preventDefault(); // Prevent default form submission
+                event.preventDefault();
                 if (validateUsername()) {
                     registerPasskey();
                 }
@@ -280,16 +270,14 @@
         }
 
         form.addEventListener('submit', (event) => {
-            event.preventDefault(); // Prevent default form submission on Enter key
+            event.preventDefault();
             if (validateUsername()) {
-                // Determine which button was "clicked" (though programmatically)
                 const activeElement = document.activeElement;
                 if (activeElement && activeElement.id === 'register-button') {
                     registerPasskey();
                 } else if (activeElement && activeElement.id === 'sign-in-button') {
                     signInWithPasskey();
                 } else {
-                    // Default to sign-in if no specific button has focus
                     signInWithPasskey();
                 }
             }
